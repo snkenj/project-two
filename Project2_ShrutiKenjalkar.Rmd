@@ -1,0 +1,189 @@
+---
+title: "Project2_ShrutiKenjalkar"
+author: "Shruti Kenjalkar"
+date: "3/18/2021"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#load the mlbench package which has the BreastCancer data set
+require(mlbench)
+# if you don't have any required package, use the install.packages() command
+# load the data set
+data(BreastCancer)
+# some algorithms don't like missing values, so remove rows with missing values
+BreastCancer <- na.omit(BreastCancer) 
+# remove the unique identifier, which is useless and would confuse the machine learning algorithms
+BreastCancer$Id <- NULL 
+```
+
+
+```{r }
+# partition the data set for 80% training and 20% evaluation (adapted from ?randomForest)
+set.seed(2)
+ind <- sample(2, nrow(BreastCancer), replace = TRUE, prob=c(0.8, 0.2))
+View(BreastCancer[ind == 1,])
+View(BreastCancer[ind == 2,])
+```
+
+
+
+```{r}
+#Support Vector machines
+library(e1071)
+svm1 <- svm(Class ~ ., BreastCancer[ind == 1,])
+svm1.pred <- predict(svm1, BreastCancer[ind == 1,])
+table(svm1.pred,BreastCancer[ind == 1,]$Class)
+#Results
+#svm1.pred  benign malignant
+#  benign       343         7
+#  malignant      9       176
+```
+
+```{r}
+#Naive Bayes
+#install.packages("klaR")
+library(klaR)
+nb1 <- NaiveBayes(Class ~ ., BreastCancer[ind == 1,])
+nb1.pred <- predict(nb1,BreastCancer[ind == 1,])
+table(nb1.pred$class,BreastCancer[ind == 1,]$Class)
+#Results
+#           benign malignant
+#  benign       344         2
+#  malignant      8       181
+```
+
+```{r}
+#Neural net
+library(nnet)
+nnet1 <- nnet(Class ~ ., BreastCancer[ind == 1,], size=1)
+nnet1.pred <- predict(nnet1,BreastCancer[ind == 1,],type="class")
+table(nnet1.pred,BreastCancer[ind == 1,]$Class)
+# weights:  83
+# initial  value 387.979174 
+# iter  10 value 28.731044
+# iter  20 value 16.168043
+# iter  30 value 15.373655
+# iter  40 value 11.074879
+# iter  50 value 11.052128
+# iter  60 value 11.049343
+# iter  70 value 11.046371
+# iter  80 value 11.045553
+# iter  90 value 11.044829
+# iter 100 value 11.044657
+# final  value 11.044657 
+# stopped after 100 iterations
+#nnet1.pred benign malignant
+#  benign       350         0
+#  malignant      2       183
+```
+
+```{r}
+#Decision trees
+library(rpart)
+tree1 <- rpart(Class ~ ., BreastCancer[ind == 1,])
+#plot(tree1); text(tree1) 
+#summary(tree1)
+tree1.pred <- predict(tree1,BreastCancer[ind == 1,],type="class")
+table(tree1.pred,BreastCancer[ind == 1,]$Class)
+# My Results
+# benign malignant
+#  benign       343         2
+#  malignant      9       181
+```
+
+
+
+```{r}
+#Random Forests
+library(randomForest)
+rf1 <- randomForest(Class ~ .,BreastCancer[ind == 1,])
+rf1.pred <- predict(rf1, BreastCancer[ind == 1,])
+table(rf1.pred, BreastCancer[ind == 1,]$Class)
+#rf1.pred   benign malignant
+#  benign       352         0
+#  malignant      0       183
+```
+
+```{r}
+#Regularised Discriminant Analysis
+library(klaR)
+rda1 <- rda(Class ~ ., BreastCancer[ind == 1,])
+rda1.pred <- predict(rda1, BreastCancer[ind == 1,])
+table(rda1.pred$class,BreastCancer[ind == 1,]$Class)
+#            benign malignant
+#  benign       344         3
+#  malignant      8       180
+```
+
+
+```{r}
+#begin ensemble
+#set malignant==1 Benign ==0
+rda1.pred1<- data.frame(rda1.pred$class)
+rda1.pred1<-ifelse(rda1.pred1=="malignant",1,0)
+rf1.pred1<- data.frame(rf1.pred)
+rf1.pred1<-ifelse(rf1.pred1=="malignant",1,0)
+tree1.pred1<-data.frame(tree1.pred)
+tree1.pred1<-ifelse(tree1.pred1=="malignant",1,0)
+nnet1.pred1<-data.frame(nnet1.pred)
+nnet1.pred1<-ifelse(nnet1.pred1=="malignant",1,0)
+nb1.pred1<-data.frame(nb1.pred$class)
+nb1.pred1<-ifelse(nb1.pred1=="malignant",1,0)
+svm1.pred1<-data.frame(svm1.pred)
+svm1.pred1<-ifelse(svm1.pred1=="malignant",1,0)
+#build ensemble
+ensembel.df<-data.frame(cbind(rda1.pred1, rf1.pred1, tree1.pred1, nnet1.pred1, nb1.pred1, svm1.pred1))
+sum<-rowSums(ensembel.df, na.rm = FALSE, dims = 1)
+Class_majority<- ifelse(sum >3.5, "malignant", "benign")
+ensembel.df1<-data.frame(cbind(ensembel.df, sum, Class_majority))
+#test ensemble for test data
+table(ensembel.df1$Class_majority,BreastCancer[ind == 1,]$Class)
+# My results
+#          benign malignant
+#  benign       346         3
+#  malignant      6       180
+```
+
+```{r}
+#Predict Class with validation data set
+rda1.predv <- predict(rda1, BreastCancer[ind == 2,])
+rf1.predv <- predict(rf1, BreastCancer[ind == 2,])
+tree1.predv <- predict(tree1,BreastCancer[ind == 2,],type="class")
+nnet1.predv <- predict(nnet1,BreastCancer[ind == 2,],type="class")
+nb1.predv <- predict(nb1,BreastCancer[ind == 2,])
+svm1.predv <- predict(svm1, BreastCancer[ind == 2,])
+#set up ensemble for validation
+rda1.predv1<- data.frame(rda1.predv$class)
+rda1.predv1<-ifelse(rda1.predv1=="malignant",1,0)
+rf1.predv1<- data.frame(rf1.predv)
+rf1.predv1<-ifelse(rf1.predv1=="malignant",1,0)
+tree1.predv1<-data.frame(tree1.predv)
+tree1.predv1<-ifelse(tree1.predv1=="malignant",1,0)
+nnet1.predv1<-data.frame(nnet1.predv)
+nnet1.predv1<-ifelse(nnet1.predv1=="malignant",1,0)
+nb1.predv1<-data.frame(nb1.predv$class)
+nb1.predv1<-ifelse(nb1.predv1=="malignant",1,0)
+svm1.predv1<-data.frame(svm1.predv)
+svm1.predv1<-ifelse(svm1.predv1=="malignant",1,0)
+#build ensemble for validation
+ensembel.v.df<-data.frame(cbind(rda1.predv1, rf1.predv1, tree1.predv1, nnet1.predv1, nb1.predv1, svm1.predv1))
+sum2<-rowSums(ensembel.v.df, na.rm = FALSE, dims = 1)
+sum2<-data.frame(sum2)
+Class_majority2<- ifelse(sum2 >3.5, "malignant", "benign")
+Class_majority2<-data.frame(Class_majority2)
+dim(sum2)
+dim(Class_majority2)
+dim(ensembel.v.df)
+ensembel.v.df1<-data.frame(cbind(ensembel.v.df, sum2, Class_majority2))
+View(ensembel.v.df1)
+#test ensemble for validation data
+table(ensembel.v.df1$sum2.1,BreastCancer[ind == 2,]$Class)
+#Results
+#           benign malignant
+# benign        87         0
+# malignant      5        56
+```
+
+
